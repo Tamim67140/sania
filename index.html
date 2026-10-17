@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>For Sania 🌹</title>
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Quicksand:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --pink:#ff7aa8; --deep:#2a0f1f; --glass:rgba(255,255,255,.08); }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; -webkit-tap-highlight-color:transparent; overscroll-behavior:none; }
+  body {
+    font-family:'Quicksand',sans-serif; color:#fff; overflow:hidden;
+    background:radial-gradient(ellipse at top,#4a1636 0%,#1a0712 60%,#0d0309 100%);
+    display:flex; align-items:center; justify-content:center;
+  }
+  /* floating hearts */
+  .heart { position:fixed; bottom:-40px; color:var(--pink); opacity:.5; pointer-events:none;
+    animation:rise linear forwards; }
+  @keyframes rise { to { transform:translateY(-110vh) rotate(30deg); opacity:0; } }
+
+  .stage { width:min(420px,100% - 32px); height:min(720px,100vh - 32px); height:min(720px,100dvh - 32px); position:relative; }
+  .scene { position:absolute; inset:0; display:flex; flex-direction:column; transition:opacity 1s ease; }
+  #mute { position:fixed; top:14px; right:14px; z-index:20; width:40px; height:40px; border-radius:50%;
+    border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.08); color:#fff; font-size:18px;
+    cursor:pointer; display:none; }
+  .hidden { opacity:0; pointer-events:none; }
+
+  /* chat card */
+  .card { flex:1; display:flex; flex-direction:column; border-radius:24px; overflow:hidden;
+    background:var(--glass); backdrop-filter:blur(14px); border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  .head { padding:14px 18px; display:flex; align-items:center; gap:12px; border-bottom:1px solid rgba(255,255,255,.1); }
+  .avatar { width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#ff7aa8,#c2185b);
+    display:grid; place-items:center; font-size:20px; }
+  .head small { display:block; opacity:.6; font-size:12px; }
+  .msgs { flex:1; padding:18px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; }
+  .bubble { max-width:80%; padding:10px 14px; border-radius:18px; line-height:1.45; font-size:15px;
+    animation:pop .4s ease; word-wrap:break-word; }
+  .them { align-self:flex-start; background:rgba(255,255,255,.12); border-bottom-left-radius:4px; }
+  .me { align-self:flex-end; background:linear-gradient(135deg,#ff7aa8,#d81b60); border-bottom-right-radius:4px; }
+  .big { font-family:'Dancing Script',cursive; font-size:30px; color:#ffd1e1; background:none; padding:4px 0; }
+  @keyframes pop { from { transform:scale(.8); opacity:0; } }
+  .typing span { display:inline-block; width:7px; height:7px; margin:0 2px; border-radius:50%; background:#fff;
+    opacity:.5; animation:blink 1.2s infinite; }
+  .typing span:nth-child(2){animation-delay:.2s} .typing span:nth-child(3){animation-delay:.4s}
+  @keyframes blink { 50% { opacity:1; transform:translateY(-3px); } }
+  .caret { border-right:2px solid #ffd1e1; animation:car .8s steps(1) infinite; }
+  @keyframes car { 50% { border-color:transparent; } }
+
+  .input { display:flex; gap:8px; padding:12px; border-top:1px solid rgba(255,255,255,.1); }
+  .input input { flex:1; padding:12px 16px; border-radius:999px; border:none; outline:none;
+    background:rgba(255,255,255,.1); color:#fff; font:inherit; font-size:16px; }
+  .input button { width:46px; border-radius:50%; border:none; cursor:pointer; font-size:18px;
+    background:linear-gradient(135deg,#ff7aa8,#d81b60); color:#fff; }
+
+  /* rose scene */
+  #rose { align-items:center; justify-content:center; text-align:center; gap:24px; }
+  .rose-wrap { perspective:800px; }
+  .rose { width:220px; animation:spin 8s linear infinite; transform-style:preserve-3d;
+    filter:drop-shadow(0 0 30px rgba(255,80,130,.55)); }
+  @keyframes spin { from { transform:rotateY(0) } to { transform:rotateY(360deg) } }
+  .glow { animation:breathe 3s ease-in-out infinite; }
+  @keyframes breathe { 50% { transform:scale(1.04); } }
+  #rose p { font-family:'Dancing Script',cursive; font-size:28px; color:#ffd1e1; opacity:0; transition:opacity 1.2s; }
+  #rose p.show { opacity:1; }
+  .tap { font-size:13px; opacity:0; transition:opacity 1s; letter-spacing:1px; }
+  .tap.show { opacity:.6; }
+  .start { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:18px; cursor:pointer; z-index:5; text-align:center; }
+  .start .env { font-size:64px; animation:breathe 2s infinite; }
+
+  /* wish cards */
+  #wishes { align-items:center; justify-content:center; gap:14px; perspective:900px; }
+  #wishes h2 { font-family:'Dancing Script',cursive; font-size:30px; color:#ffd1e1; margin-bottom:6px; }
+  .wish { width:100%; padding:16px 18px; border-radius:18px; display:flex; gap:14px; align-items:center;
+    background:var(--glass); border:1px solid rgba(255,255,255,.14); backdrop-filter:blur(10px);
+    opacity:0; transform:rotateX(-90deg) translateY(20px); transform-origin:top;
+    transition:transform .8s cubic-bezier(.2,1.4,.4,1), opacity .8s; }
+  .wish.in { opacity:1; transform:none; }
+  .wish .ic { font-size:30px; }
+  .wish b { display:block; margin-bottom:2px; }
+  .wish span { font-size:14px; opacity:.8; }
+
+  /* cake */
+  #cake { align-items:center; justify-content:center; text-align:center; gap:28px; }
+  .cakebox { position:relative; width:200px; height:190px; cursor:pointer; }
+  .tier { position:absolute; left:50%; transform:translateX(-50%); border-radius:12px; }
+  .t1 { bottom:0; width:200px; height:70px; background:linear-gradient(#f8bbd0,#ec407a); }
+  .t2 { bottom:66px; width:150px; height:55px; background:linear-gradient(#fff3e0,#ffcc80); }
+  .t2::after,.t1::after { content:''; position:absolute; top:0; left:0; right:0; height:14px; border-radius:12px 12px 20px 20px; background:#fff; opacity:.9; }
+  .candle { position:absolute; bottom:121px; width:10px; height:38px; border-radius:3px;
+    background:repeating-linear-gradient(45deg,#fff 0 6px,#4fc3f7 6px 12px); }
+  .flame { position:absolute; left:50%; top:-22px; width:14px; height:22px; margin-left:-7px;
+    border-radius:50% 50% 50% 50%/60% 60% 40% 40%; background:radial-gradient(#fff59d,#ff9800 60%,transparent 70%);
+    animation:flick .15s infinite alternate; transform-origin:bottom; }
+  @keyframes flick { to { transform:scale(.9,1.1) rotate(3deg); } }
+  .out .flame { animation:none; opacity:0; transition:opacity .4s; }
+  .smoke { position:absolute; left:50%; top:-20px; width:8px; height:8px; margin-left:-4px; border-radius:50%;
+    background:rgba(255,255,255,.5); opacity:0; }
+  .out .smoke { animation:smoke 1.6s ease-out forwards; }
+  @keyframes smoke { 0%{opacity:.7} 100%{opacity:0; transform:translateY(-60px) scale(4);} }
+  #cake h3 { font-family:'Dancing Script',cursive; font-size:28px; color:#ffd1e1; min-height:40px; }
+  #thanks { align-items:center; justify-content:center; text-align:center; }
+  #thanks h1 { font-family:'Dancing Script',cursive; font-size:clamp(48px,16vw,76px); color:#ffd1e1;
+    text-shadow:0 0 24px rgba(255,122,168,.8), 0 0 60px rgba(255,122,168,.4);
+    transform:scale(.6); opacity:0; transition:transform 1s cubic-bezier(.2,1.4,.4,1), opacity 1s; }
+  #thanks.on h1 { transform:none; opacity:1; animation:breathe 3s ease-in-out 1s infinite; }
+  #confetti { position:fixed; inset:0; pointer-events:none; z-index:10; }
+</style>
+</head>
+<body>
+<button id="mute" title="Sound on/off">🔊</button>
+<div class="stage">
+
+  <!-- 0: tap to open (needed so music/animations start on mobile) -->
+  <div class="start" id="start">
+    <div class="env">💌</div>
+    <div style="font-family:'Dancing Script',cursive;font-size:28px;color:#ffd1e1">Something for you…</div>
+    <div class="tap show">tap to open</div>
+  </div>
+
+  <!-- 1: birthday chat -->
+  <div class="scene hidden" id="intro">
+    <div class="card">
+      <div class="head"><div class="avatar">💖</div><div><b>Someone</b><small id="status">online</small></div></div>
+      <div class="msgs" id="introMsgs"></div>
+    </div>
+  </div>
+
+  <!-- 2: wish cards -->
+  <div class="scene hidden" id="wishes">
+    <h2>For your new year ✨</h2>
+    <div class="wish"><div class="ic">🌈</div><div><b>Shundor ekta life</b><span>Tomar protiti din jeno aro shundor hoy</span></div></div>
+    <div class="wish"><div class="ic">🚀</div><div><b>Boro boro shopno</b><span>Ja chao, sheta jeno puron korte paro</span></div></div>
+    <div class="wish"><div class="ic">🍀</div><div><b>Always shustho</b><span>Shorir ar mon duitai jeno bhalo thake</span></div></div>
+    <div class="wish"><div class="ic">😊</div><div><b>Onek hashi</b><span>Mon kharap gula jeno beshi din na thake</span></div></div>
+    <div class="tap" id="wishTap">tap to continue</div>
+  </div>
+
+  <!-- 3: cake -->
+  <div class="scene hidden" id="cake">
+    <h3 id="cakeText">Ekta wish koro, tarpor candle e tap koro 🕯️</h3>
+    <div class="cakebox" id="cakebox">
+      <div class="tier t1"></div><div class="tier t2"></div>
+      <div class="candle" style="left:62px"><div class="flame"></div><div class="smoke"></div></div>
+      <div class="candle" style="left:95px"><div class="flame"></div><div class="smoke"></div></div>
+      <div class="candle" style="left:128px"><div class="flame"></div><div class="smoke"></div></div>
+    </div>
+    <div class="tap" id="cakeTap">tap anywhere to continue</div>
+  </div>
+
+  <!-- 4: rose -->
+  <div class="scene hidden" id="rose">
+    <div class="rose-wrap"><div class="glow">
+      <svg class="rose" viewBox="0 0 200 320" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="p" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#ff5c8a"/><stop offset="1" stop-color="#9b0f3a"/></radialGradient>
+          <linearGradient id="s" x1="0" x2="1"><stop offset="0" stop-color="#2e7d32"/><stop offset="1" stop-color="#1b5e20"/></linearGradient>
+        </defs>
+        <path d="M100 150 C 96 210, 104 260, 100 315" stroke="url(#s)" stroke-width="6" fill="none"/>
+        <path d="M100 230 C 70 210, 45 220, 35 240 C 60 245, 85 242, 100 230Z" fill="#388e3c"/>
+        <path d="M101 260 C 130 240, 155 248, 165 265 C 140 272, 115 270, 101 260Z" fill="#2e7d32"/>
+        <path d="M100 160 C 50 160, 35 110, 50 75 C 70 95, 85 100, 100 100 C 115 100, 130 95, 150 75 C 165 110, 150 160, 100 160Z" fill="url(#p)"/>
+        <path d="M60 85 C 55 45, 85 30, 100 45 C 115 30, 145 45, 140 85 C 125 70, 75 70, 60 85Z" fill="#e0245e"/>
+        <path d="M75 90 C 75 60, 100 55, 100 70 C 100 55, 125 60, 125 90 C 115 105, 85 105, 75 90Z" fill="#c2185b"/>
+        <path d="M88 82 C 90 68, 110 68, 112 82 C 105 92, 95 92, 88 82Z" fill="#8e0e35"/>
+        <path d="M70 130 C 85 140, 115 140, 130 130" stroke="#7a0b2e" stroke-width="2" fill="none" opacity=".5"/>
+      </svg>
+    </div></div>
+    <p id="roseLine">Ekta chhotto ful, tomar birthday r jonno 🌸</p>
+    <div class="tap" id="roseTap">tap anywhere to continue</div>
+  </div>
+
+  <!-- 6: thank you -->
+  <div class="scene hidden" id="thanks"><h1>THANK YOU</h1><div class="tap show" style="margin-top:24px">tap to chat again</div></div>
+
+  <!-- 5: open chat -->
+  <div class="scene hidden" id="chat">
+    <div class="card">
+      <div class="head"><div class="avatar">🎈</div><div><b>Just for you</b><small>online</small></div></div>
+      <div class="msgs" id="chatMsgs"></div>
+      <form class="input hidden" id="replyForm">
+        <input id="replyText" placeholder="Kichu bolo…" autocomplete="off" maxlength="1000">
+        <button type="submit">➤</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+// ---- sound (generated with Web Audio, no files needed) ----
+let ac, master, muted = false;
+function initAudio() {
+  try {
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    master = ac.createGain();
+    master.gain.value = .6;
+    master.connect(ac.destination);
+    if (ac.state === 'suspended') ac.resume();
+  } catch (e) {
+    ac = null; // no sound in this browser, the rest still runs
+  }
+}
+function tone(freq, start, dur, { type = 'sine', vol = .2, attack = .01 } = {}) {
+  if (!ac) return;
+  try {
+  const t = ac.currentTime + start;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol, t + attack);
+  g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); g.connect(master);
+  o.start(t); o.stop(t + dur + .05);
+  } catch (e) {}
+}
+function noise(dur, vol, filterFreq) {
+  if (!ac) return;
+  try {
+  const buf = ac.createBuffer(1, ac.sampleRate * dur, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+  const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  s.buffer = buf; f.type = 'lowpass'; f.frequency.value = filterFreq; g.gain.value = vol;
+  s.connect(f); f.connect(g); g.connect(master); s.start();
+  } catch (e) {}
+}
+const sfx = {
+  pop:   () => { tone(880, 0, .15, { vol: .15 }); tone(1320, .05, .2, { vol: .1 }); },
+  send:  () => { tone(600, 0, .12, { vol: .12, type: 'triangle' }); tone(900, .06, .15, { vol: .1, type: 'triangle' }); },
+  key:   () => tone(1500 + Math.random() * 300, 0, .04, { vol: .04, type: 'square' }),
+  chime: () => [1047, 1319, 1568].forEach((f, i) => tone(f, i * .09, .9, { vol: .1 })),
+  whoosh:() => noise(.9, .5, 900),
+  party: () => { noise(.3, .4, 4000); [523, 659, 784, 1047].forEach((f, i) => tone(f, .1 + i * .08, .8, { vol: .12, type: 'triangle' })); },
+  open:  () => [392, 523, 659, 784].forEach((f, i) => tone(f, i * .15, 1.4, { vol: .1 })),
+};
+
+// soft music-box Happy Birthday loop in the background
+const tune = [[392,.75],[392,.25],[440,1],[392,1],[523,1],[494,2],[392,.75],[392,.25],[440,1],[392,1],[587,1],[523,2],
+  [392,.75],[392,.25],[784,1],[659,1],[523,1],[494,1],[440,2],[698,.75],[698,.25],[659,1],[523,1],[587,1],[523,3]];
+function playTune() {
+  if (!ac) return;
+  const beat = .6;
+  let t = 0;
+  for (const [f, b] of tune) {
+    tone(f, t, b * beat + 1.2, { vol: .045, attack: .005 });
+    tone(f * 2, t, .6, { vol: .012, attack: .005 });
+    t += b * beat;
+  }
+  setTimeout(playTune, (t + 4) * 1000);
+}
+$('mute').onclick = () => {
+  if (!master) return;
+  muted = !muted;
+  master.gain.value = muted ? 0 : .6;
+  $('mute').textContent = muted ? '🔇' : '🔊';
+};
+
+// floating hearts
+setInterval(() => {
+  const h = document.createElement('div');
+  h.className = 'heart';
+  h.textContent = ['✨','🎈','⭐','🌸'][Math.random()*4|0];
+  h.style.left = Math.random()*100 + 'vw';
+  h.style.fontSize = 12 + Math.random()*18 + 'px';
+  h.style.animationDuration = 6 + Math.random()*6 + 's';
+  document.body.appendChild(h);
+  setTimeout(() => h.remove(), 12000);
+}, 700);
+
+function show(id) {
+  document.querySelectorAll('.scene').forEach(s => s.classList.add('hidden'));
+  $(id).classList.remove('hidden');
+}
+
+function bubble(box, cls, text = '') {
+  const b = document.createElement('div');
+  b.className = 'bubble ' + cls;
+  b.textContent = text;
+  box.appendChild(b);
+  box.scrollTop = box.scrollHeight;
+  return b;
+}
+
+async function typing(box, ms) {
+  const t = bubble(box, 'them typing');
+  t.innerHTML = '<span></span><span></span><span></span>';
+  $('status') && ($('status').textContent = 'typing…');
+  await wait(ms);
+  t.remove();
+  $('status') && ($('status').textContent = 'online');
+}
+
+// typing dots, then the message, then a pause long enough to read it
+async function say(box, text, ms = 1000) {
+  await typing(box, ms);
+  bubble(box, 'them', text);
+  sfx.pop();
+  await wait(Math.max(1800, text.length * 55));
+}
+
+async function typeOut(el, text, speed = 110) {
+  el.classList.add('caret');
+  for (const ch of text) { el.textContent += ch; if (ch.trim()) sfx.key(); await wait(speed); }
+  el.classList.remove('caret');
+}
+
+async function intro() {
+  show('intro');
+  const box = $('introMsgs');
+  await wait(800);
+  await say(box, 'Hey… 🙂');
+  await say(box, 'Ajke ekta special din, tai na?');
+  await typing(box, 1200);
+  const big = bubble(box, 'them big');
+  await typeOut(big, 'HAPPY BIRTHDAY SANIA 🎂🎉');
+  confetti(120);
+  sfx.party();
+  await wait(2000);
+  await say(box, 'Notun bochor ta jeno tomar life er shobcheye shundor bochor hoy 🌟', 1200);
+  await say(box, 'Tomar jonno kichu wish ache, dekho…', 1000);
+  wishScene();
+}
+
+async function wishScene() {
+  show('wishes');
+  await wait(700);
+  for (const w of document.querySelectorAll('.wish')) {
+    await wait(1600);
+    w.classList.add('in');
+    sfx.chime();
+  }
+  await wait(1500);
+  $('wishTap').classList.add('show');
+  $('wishes').addEventListener('click', cakeScene, { once: true });
+}
+
+async function cakeScene() {
+  show('cake');
+  $('cakebox').addEventListener('click', async () => {
+    $('cakebox').classList.add('out');
+    sfx.whoosh();
+    await wait(500);
+    confetti(250);
+    sfx.party();
+    $('cakeText').textContent = 'Wish ta jeno puron hoy ✨';
+    await wait(2500);
+    $('cakeTap').classList.add('show');
+    $('cake').addEventListener('click', roseScene, { once: true });
+  }, { once: true });
+}
+
+// simple canvas confetti burst
+function confetti(n) {
+  const c = document.createElement('canvas');
+  c.id = 'confetti';
+  c.width = innerWidth; c.height = innerHeight;
+  document.body.appendChild(c);
+  const ctx = c.getContext('2d');
+  const colors = ['#ff7aa8','#ffd54f','#4fc3f7','#81c784','#ba68c8','#fff'];
+  const ps = Array.from({ length: n }, () => ({
+    x: c.width / 2, y: c.height / 2,
+    vx: (Math.random() - .5) * 14, vy: Math.random() * -14 - 4,
+    s: 4 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - .5) * .3,
+    col: colors[Math.random() * colors.length | 0],
+  }));
+  let f = 0;
+  (function draw() {
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (const p of ps) {
+      p.vy += .35; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r);
+      ctx.fillStyle = p.col; ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
+      ctx.restore();
+    }
+    if (++f < 180) requestAnimationFrame(draw); else c.remove();
+  })();
+}
+
+async function roseScene() {
+  show('rose');
+  sfx.chime();
+  await wait(1800);
+  $('roseLine').classList.add('show');
+  await wait(3000);
+  $('roseTap').classList.add('show');
+  $('rose').addEventListener('click', openChat, { once: true });
+}
+
+async function openChat() {
+  show('chat');
+  const box = $('chatMsgs');
+  await wait(900);
+  await say(box, 'Shesh porjonto dekhar jonno thank you 😊');
+  await say(box, 'Life e ja korte chao, ami jani tumi parbe. Always support thakbe 💪', 1200);
+  await say(box, 'Kichu bolte chaile ekhane likho, ami pabo 💌', 900);
+  $('replyForm').classList.remove('hidden');
+  $('replyText').focus();
+}
+
+// Google Apps Script web app: saves each message to the Sheet and returns a reply
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzMMzWVzVuINiiXpsRxN-z7HFZabSbtG9Ot7yC0XeKRrasHYAsk4yebasEraMQtfzic/exec';
+
+// used only when the Sheet can't be reached
+function localReply(text) {
+  const t = text.toLowerCase();
+  if (/thank|thanks|dhonnobad|ধন্যবাদ/.test(t)) return 'Tomake o thank you, ei din ta share korar jonno 🥰';
+  if (/love|valobasi|bhalobashi|ভালোবাসি/.test(t)) return 'Eta pore mon ta bhore gelo 💖';
+  if (/\?|\bke\b|\bwho\b|\bkeu\b/.test(t)) return 'Shob proshner uttor ekdin pabe 😉 Ajke shudhu tomar din 🎂';
+  return 'Tomar message ta pouche geche 💌 Onek onek bhalo theko, happy birthday abar o 🌸';
+}
+
+let thanked = false;
+$('replyForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = $('replyText').value.trim();
+  if (!text) return;
+  const box = $('chatMsgs');
+  $('replyText').value = '';
+  bubble(box, 'me', text);
+  sfx.send();
+  let reply = localReply(text);
+  const typingDone = typing(box, 1500);
+  try {
+    const res = await fetch(SHEET_URL, { method: 'POST', body: JSON.stringify({ message: text }) });
+    const data = await res.json();
+    if (data.reply) reply = data.reply;
+  } catch (err) {}
+  await typingDone;
+  bubble(box, 'them', reply);
+  sfx.pop();
+  if (thanked) return;
+  thanked = true;
+  await wait(3500);
+  show('thanks');
+  await wait(400);
+  $('thanks').classList.add('on');
+  sfx.chime();
+  confetti(200);
+  await wait(4000);
+  $('thanks').addEventListener('click', () => show('chat'), { once: true });
+});
+
+$('start').addEventListener('click', () => {
+  $('start').remove();
+  intro();
+  initAudio();
+  if (ac) {
+    sfx.open();
+    setTimeout(playTune, 1200);
+    $('mute').style.display = 'block';
+  }
+}, { once: true });
+</script>
+</body>
+</html>
