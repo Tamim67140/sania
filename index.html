@@ -93,25 +93,6 @@
   .wish b { display:block; margin-bottom:2px; }
   .wish span { font-size:14px; opacity:.8; }
 
-  /* cake */
-  #cake { align-items:center; justify-content:center; text-align:center; gap:28px; }
-  .cakebox { position:relative; width:200px; height:190px; cursor:pointer; }
-  .tier { position:absolute; left:50%; transform:translateX(-50%); border-radius:12px; }
-  .t1 { bottom:0; width:200px; height:70px; background:linear-gradient(#f8bbd0,#ec407a); }
-  .t2 { bottom:66px; width:150px; height:55px; background:linear-gradient(#fff3e0,#ffcc80); }
-  .t2::after,.t1::after { content:''; position:absolute; top:0; left:0; right:0; height:14px; border-radius:12px 12px 20px 20px; background:#fff; opacity:.9; }
-  .candle { position:absolute; bottom:121px; width:10px; height:38px; border-radius:3px;
-    background:repeating-linear-gradient(45deg,#fff 0 6px,#4fc3f7 6px 12px); }
-  .flame { position:absolute; left:50%; top:-22px; width:14px; height:22px; margin-left:-7px;
-    border-radius:50% 50% 50% 50%/60% 60% 40% 40%; background:radial-gradient(#fff59d,#ff9800 60%,transparent 70%);
-    animation:flick .15s infinite alternate; transform-origin:bottom; }
-  @keyframes flick { to { transform:scale(.9,1.1) rotate(3deg); } }
-  .out .flame { animation:none; opacity:0; transition:opacity .4s; }
-  .smoke { position:absolute; left:50%; top:-20px; width:8px; height:8px; margin-left:-4px; border-radius:50%;
-    background:rgba(255,255,255,.5); opacity:0; }
-  .out .smoke { animation:smoke 1.6s ease-out forwards; }
-  @keyframes smoke { 0%{opacity:.7} 100%{opacity:0; transform:translateY(-60px) scale(4);} }
-  #cake h3 { font-family:'Dancing Script',cursive; font-size:28px; color:#ffd1e1; min-height:40px; }
   #thanks { align-items:center; justify-content:center; text-align:center; }
   #thanks h1 { font-family:'Dancing Script',cursive; font-size:clamp(48px,16vw,76px); color:#ffd1e1;
     text-shadow:0 0 24px rgba(255,122,168,.8), 0 0 60px rgba(255,122,168,.4);
@@ -147,18 +128,6 @@
     <div class="wish"><div class="ic">🍀</div><div><b>Always shustho</b><span>Shorir ar mon duitai jeno bhalo thake</span></div></div>
     <div class="wish"><div class="ic">😊</div><div><b>Onek hashi</b><span>Mon kharap gula jeno beshi din na thake</span></div></div>
     <div class="tap" id="wishTap">tap to continue</div>
-  </div>
-
-  <!-- 3: cake -->
-  <div class="scene hidden" id="cake">
-    <h3 id="cakeText">Ekta wish koro, tarpor candle e tap koro 🕯️</h3>
-    <div class="cakebox" id="cakebox">
-      <div class="tier t1"></div><div class="tier t2"></div>
-      <div class="candle" style="left:62px"><div class="flame"></div><div class="smoke"></div></div>
-      <div class="candle" style="left:95px"><div class="flame"></div><div class="smoke"></div></div>
-      <div class="candle" style="left:128px"><div class="flame"></div><div class="smoke"></div></div>
-    </div>
-    <div class="tap" id="cakeTap">tap anywhere to continue</div>
   </div>
 
   <!-- 4: rose -->
@@ -350,22 +319,7 @@ async function wishScene() {
   }
   await wait(1500);
   $('wishTap').classList.add('show');
-  $('wishes').addEventListener('click', cakeScene, { once: true });
-}
-
-async function cakeScene() {
-  show('cake');
-  $('cakebox').addEventListener('click', async () => {
-    $('cakebox').classList.add('out');
-    sfx.whoosh();
-    await wait(500);
-    confetti(250);
-    sfx.party();
-    $('cakeText').textContent = 'Wish ta jeno puron hoy ✨';
-    await wait(2500);
-    $('cakeTap').classList.add('show');
-    $('cake').addEventListener('click', roseScene, { once: true });
-  }, { once: true });
+  $('wishes').addEventListener('click', roseScene, { once: true });
 }
 
 // simple canvas confetti burst
