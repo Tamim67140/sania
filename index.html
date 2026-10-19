@@ -502,7 +502,7 @@ window.startGift = function (done) {
   resize();
   addEventListener('resize', resize);
 
-  const cam0 = new THREE.Vector3(0, 2.4, 7.5), cam1 = new THREE.Vector3(0, 3.6, 4.4);
+  const cam0 = new THREE.Vector3(0, 2.4, 7.5), cam1 = new THREE.Vector3(0, 3.7, 5.6);
   const tgt0 = new THREE.Vector3(0, .8, 0), tgt1 = new THREE.Vector3(0, 2.1, 0);
   camera.position.copy(cam0);
   const controls = new OrbitControls(camera, canvas);
@@ -544,63 +544,98 @@ window.startGift = function (done) {
   }
   add(lid, new THREE.SphereGeometry(.13, 24, 16), gold, 0, .47, 0);
 
-  // ---- rose ----
+  // ---- lily bouquet (kept in `rose` so the animation code stays the same) ----
   const rose = new THREE.Group();
   rose.position.y = .7;
   rose.scale.setScalar(.001);
   scene.add(rose);
-  const petalMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: .55,
-    sheen: .7, sheenRoughness: .5, sheenColor: new THREE.Color(0xb0203f) });
-  const red = [0x3a000c, 0x8e0c26, 0xc8173c];
-  const layers = [
-    { n: 3, w: .32, h: .5, r: .02, closed: -.3, open: -.12, cup: .55, curl: 0 },
-    { n: 4, w: .46, h: .6, r: .05, closed: -.22, open: .18, cup: .5, curl: .04 },
-    { n: 5, w: .6, h: .68, r: .08, closed: -.16, open: .52, cup: .42, curl: .1 },
-    { n: 6, w: .74, h: .75, r: .11, closed: -.1, open: .72, cup: .36, curl: .16 },
-    { n: 7, w: .86, h: .78, r: .14, closed: 0, open: .98, cup: .3, curl: .24 },
-  ];
-  const petals = [];
-  layers.forEach((L, i) => {
-    const geo = petalGeo(L.w, L.h, L.cup, L.curl, red);
-    for (let k = 0; k < L.n; k++) {
-      const pivot = new THREE.Group();
-      pivot.rotation.y = k / L.n * Math.PI * 2 + i * .7;
-      pivot.position.y = -i * .035;
-      const m = new THREE.Mesh(geo, petalMat);
-      m.position.z = L.r;
-      pivot.add(m);
-      rose.add(pivot);
-      petals.push({ m, closed: L.closed, open: L.open, delay: i * .11 });
+
+  // long pointed tepal that curls back at the tip: pink stripe, pale edges, dark spots
+  function lilyGeo(w, h) {
+    const g = new THREE.PlaneGeometry(1, 1, 16, 28);
+    const p = g.attributes.position, c = [], tmp = new THREE.Color();
+    const stripe = new THREE.Color(0xc8236a), edge = new THREE.Color(0xf0a3c6), throat = new THREE.Color(0xf1efc8),
+      spot = new THREE.Color(0x8e0f45);
+    for (let i = 0; i < p.count; i++) {
+      const u = p.getX(i) * 2, v = p.getY(i) + .5;
+      const prof = Math.sin(Math.PI * v) ** .8 * (v < .25 ? .45 + .55 * v / .25 : 1);
+      const z = -.4 * u * u * w * .5 * prof + .6 * h * Math.max(0, v - .4) ** 2 + .015 * Math.sin(v * 20) * Math.abs(u);
+      p.setXYZ(i, u * w * .5 * prof, v * h, z);
+      tmp.copy(edge).lerp(stripe, (1 - Math.abs(u)) ** .9);
+      if (v < .22) tmp.lerp(throat, 1 - v / .22);
+      const hash = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
+      if (hash > .9 && v > .15 && v < .6 && Math.abs(u) < .65) tmp.lerp(spot, .8);
+      c.push(tmp.r, tmp.g, tmp.b);
     }
-  });
+    g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
+    g.computeVertexNormals();
+    return g;
+  }
+  const petalMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: .5,
+    sheen: .5, sheenRoughness: .4, sheenColor: new THREE.Color(0xffc0dc) });
+  const outerGeo = lilyGeo(.42, 1.05), innerGeo = lilyGeo(.52, 1);
+  const green = new THREE.MeshStandardMaterial({ color: 0x2f6b2a, roughness: .6, side: THREE.DoubleSide });
+  const filMat = new THREE.MeshStandardMaterial({ color: 0xd9e6b0, roughness: .6 });
+  const antherMat = new THREE.MeshStandardMaterial({ color: 0x9a4414, roughness: .9 });
+  const stigmaMat = new THREE.MeshStandardMaterial({ color: 0x6f8f3a, roughness: .5 });
+  const antherGeo = new THREE.CapsuleGeometry(.022, .09, 4, 8);
+
+  const petals = [];
+  function lily(delay) {
+    const f = new THREE.Group();
+    for (let k = 0; k < 6; k++) {
+      const outer = k % 2 === 0;
+      const pivot = new THREE.Group();
+      pivot.rotation.y = k * Math.PI / 3;
+      const m = new THREE.Mesh(outer ? outerGeo : innerGeo, petalMat);
+      m.position.z = .04;
+      pivot.add(m);
+      f.add(pivot);
+      petals.push({ m, closed: -.08, open: outer ? 1.2 : 1.02, delay: delay + (outer ? 0 : .08) });
+      const a = k * Math.PI / 3 + .5, sx = Math.sin(a), sz = Math.cos(a);
+      const fil = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(sx * .07, .35, sz * .07),
+        new THREE.Vector3(sx * .2, .62, sz * .2)]);
+      f.add(new THREE.Mesh(new THREE.TubeGeometry(fil, 16, .008, 5), filMat));
+      const an = new THREE.Mesh(antherGeo, antherMat);
+      an.position.set(sx * .2, .64, sz * .2);
+      an.rotation.set(Math.PI / 2, 0, -a);
+      f.add(an);
+    }
+    const pis = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(.02, .4, 0), new THREE.Vector3(0, .72, .03)]);
+    f.add(new THREE.Mesh(new THREE.TubeGeometry(pis, 16, .014, 6), filMat));
+    const st = new THREE.Mesh(new THREE.SphereGeometry(.04, 12, 8), stigmaMat);
+    st.position.set(0, .74, .03);
+    f.add(st);
+    return f;
+  }
+  const bunch = [
+    { p: [0, 0, 0], r: [-.3, 0, 0], s: 1, d: 0 },
+    { p: [-.8, -.5, -.25], r: [-.25, 0, .6], s: .85, d: .15 },
+    { p: [.8, -.6, -.1], r: [-.2, 0, -.65], s: .8, d: .3 },
+  ];
+  for (const b of bunch) {
+    const f = lily(b.d);
+    f.position.set(...b.p);
+    f.rotation.set(...b.r);
+    f.scale.setScalar(b.s);
+    rose.add(f);
+    const stem = new THREE.CatmullRomCurve3([new THREE.Vector3(b.p[0], b.p[1] - .02, b.p[2]),
+      new THREE.Vector3(b.p[0] * .6, b.p[1] - .7, b.p[2] * .6), new THREE.Vector3(0, -1.8, 0), new THREE.Vector3(0, -2.7, 0)]);
+    rose.add(new THREE.Mesh(new THREE.TubeGeometry(stem, 48, .04, 8), green));
+  }
   function setBloom(t) {
     for (const p of petals) p.m.rotation.x = lerp(p.closed, p.open, easeOut(clamp((t - p.delay) / .56)));
   }
   setBloom(0);
 
-  const green = new THREE.MeshStandardMaterial({ color: 0x1e5a24, roughness: .6, side: THREE.DoubleSide });
-  const leafGeo = petalGeo(.32, .42, .2, .1, [0x0f3d14, 0x1e5a24, 0x2e7d32]);
+  const leafGeo = petalGeo(.22, 1.1, .25, .15, [0x1d4a1a, 0x2f6b2a, 0x3f8a35]);
   const leafMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6, side: THREE.DoubleSide });
-  for (let k = 0; k < 5; k++) { // sepals under the head
-    const pivot = new THREE.Group();
-    pivot.rotation.y = k / 5 * Math.PI * 2;
-    const m = new THREE.Mesh(leafGeo, leafMat);
-    m.scale.setScalar(.7);
-    m.rotation.x = 2.2;
-    m.position.set(0, -.08, .05);
-    pivot.add(m);
-    rose.add(pivot);
-  }
-  const stemCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, -.05, 0), new THREE.Vector3(.06, -.9, .02),
-    new THREE.Vector3(-.05, -1.8, .06), new THREE.Vector3(0, -2.6, 0)]);
-  rose.add(new THREE.Mesh(new THREE.TubeGeometry(stemCurve, 48, .045, 10), green));
-  for (const [y, a] of [[-1.1, .4], [-1.7, 3.5]]) {
+  for (const [y, a] of [[-1.3, .5], [-1.55, 2.6], [-1.9, 4.4], [-1.1, 3.6]]) {
     const pivot = new THREE.Group();
     pivot.position.y = y;
     pivot.rotation.y = a;
     const m = new THREE.Mesh(leafGeo, leafMat);
-    m.scale.setScalar(1.4);
-    m.rotation.x = 1.1;
+    m.rotation.x = .9;
     pivot.add(m);
     rose.add(pivot);
   }
@@ -617,7 +652,7 @@ window.startGift = function (done) {
   const spMat = new THREE.PointsMaterial({ map: new THREE.CanvasTexture(dot), color: 0xffe9a8, size: .14, transparent: true, opacity: 0,
     blending: THREE.AdditiveBlending, depthWrite: false });
   scene.add(new THREE.Points(spGeo, spMat));
-  const smallPetal = petalGeo(.2, .24, .3, .08, red);
+  const smallPetal = lilyGeo(.16, .38);
   const falling = Array.from({ length: 16 }, () => {
     const m = new THREE.Mesh(smallPetal, petalMat);
     m.visible = false;
