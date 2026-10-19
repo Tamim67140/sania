@@ -66,6 +66,17 @@
   #rose p.show { opacity:1; }
   .tap { font-size:13px; opacity:0; transition:opacity 1s; letter-spacing:1px; }
   .tap.show { opacity:.6; }
+  /* 3D gift + rose (three.js); the SVG rose above is the fallback */
+  #gl { display:none; position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
+  #rose.gl #gl { display:block; }
+  #rose.gl #roseFallback, #rose.gl #roseTap { display:none; }
+  #rose.gl p { position:absolute; top:5%; left:0; right:0; z-index:2; pointer-events:none; }
+  #rose.gl #giftHint { position:absolute; bottom:8%; left:0; right:0; z-index:2; pointer-events:none; }
+  .cont { display:none; opacity:0; transition:opacity 1s; padding:12px 26px; border-radius:999px; cursor:pointer;
+    border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.1); color:#fff; font:inherit; font-size:15px;
+    backdrop-filter:blur(8px); }
+  #rose.gl .cont { display:block; position:absolute; bottom:6%; left:50%; transform:translateX(-50%); z-index:2; pointer-events:none; }
+  #rose.gl .cont.show { opacity:1; pointer-events:auto; }
   .start { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:18px; cursor:pointer; z-index:5; text-align:center; }
   .start .env { font-size:64px; animation:breathe 2s infinite; }
@@ -152,7 +163,9 @@
 
   <!-- 4: rose -->
   <div class="scene hidden" id="rose">
-    <div class="rose-wrap"><div class="glow">
+    <canvas id="gl"></canvas>
+    <div class="tap" id="giftHint">Tomar jonno ekta gift 🎁 tap koro</div>
+    <div class="rose-wrap" id="roseFallback"><div class="glow">
       <svg class="rose" viewBox="0 0 200 320" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <radialGradient id="p" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#ff5c8a"/><stop offset="1" stop-color="#9b0f3a"/></radialGradient>
@@ -170,6 +183,7 @@
     </div></div>
     <p id="roseLine">Ekta chhotto ful, tomar birthday r jonno 🌸</p>
     <div class="tap" id="roseTap">tap anywhere to continue</div>
+    <button class="cont" id="roseNext">continue ➜</button>
   </div>
 
   <!-- 6: thank you -->
@@ -381,8 +395,20 @@ function confetti(n) {
   })();
 }
 
+window.sfx = sfx;
+window.confetti = confetti;
+
 async function roseScene() {
   show('rose');
+  if (window.startGift) {
+    try {
+      $('rose').classList.add('gl');
+      window.startGift(openChat);
+      return;
+    } catch (e) {
+      $('rose').classList.remove('gl'); // no WebGL: fall back to the SVG rose
+    }
+  }
   sfx.chime();
   await wait(1800);
   $('roseLine').classList.add('show');
@@ -455,6 +481,307 @@ $('start').addEventListener('click', () => {
     $('mute').style.display = 'block';
   }
 }, { once: true });
+</script>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+// 3D gift box that opens, then a rose rises out of it and blooms petal by petal.
+// Sets window.startGift; if this module fails to load, roseScene() uses the SVG rose.
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const clamp = x => Math.min(1, Math.max(0, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeOut = t => 1 - (1 - t) ** 3;
+const easeInOut = t => t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+const backOut = t => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2;
+const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
+
+// cupped petal standing on its base: +y up, +z faces away from the flower centre
+function petalGeo(w, h, cup, curl, colors) {
+  const g = new THREE.PlaneGeometry(1, 1, 12, 16);
+  const p = g.attributes.position, c = [], tmp = new THREE.Color();
+  const [base, mid, tip] = colors.map(x => new THREE.Color(x));
+  for (let i = 0; i < p.count; i++) {
+    const u = p.getX(i) * 2, v = p.getY(i) + .5;
+    const prof = v < .7 ? Math.sin(Math.PI / 2 * (.2 + .8 * v / .7)) : Math.sqrt(Math.max(0, 1 - ((v - .7) / .3) ** 2));
+    p.setXYZ(i, u * w * .5 * prof, v * h, -cup * u * u * w * .5 * prof + curl * v ** 3 * h);
+    tmp.copy(base).lerp(mid, Math.min(1, v * 2));
+    if (v > .5) tmp.lerp(tip, (v - .5) * 1.2 + Math.abs(u) * .15);
+    c.push(tmp.r, tmp.g, tmp.b);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+function webglOK() {
+  try { return !!document.createElement('canvas').getContext('webgl2'); } catch (e) { return false; }
+}
+
+window.startGift = function (done) {
+  if (!webglOK()) throw new Error('no webgl');
+  const $ = id => document.getElementById(id);
+  const canvas = $('gl');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  const scene = new THREE.Scene();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), .04).texture;
+
+  const camera = new THREE.PerspectiveCamera(38, 1, .1, 100);
+  function resize() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.fov = camera.aspect < .8 ? 50 : 38; // portrait phones need a wider view
+    camera.updateProjectionMatrix();
+  }
+  resize();
+  addEventListener('resize', resize);
+
+  const cam0 = new THREE.Vector3(0, 2.4, 7.5), cam1 = new THREE.Vector3(0, 3.6, 4.4);
+  const tgt0 = new THREE.Vector3(0, .8, 0), tgt1 = new THREE.Vector3(0, 2.1, 0);
+  camera.position.copy(cam0);
+  const controls = new OrbitControls(camera, canvas);
+  controls.target.copy(tgt0);
+  Object.assign(controls, { enabled: false, enableDamping: true, enablePan: false, enableZoom: false,
+    minPolarAngle: .4, maxPolarAngle: 1.9, autoRotateSpeed: 1.4 });
+
+  scene.add(new THREE.HemisphereLight(0xffe6ee, 0x2a0f1f, .7));
+  const key = new THREE.DirectionalLight(0xfff1e0, 2.4);
+  key.position.set(3, 6, 4);
+  scene.add(key);
+  const rim = new THREE.PointLight(0xff5c8a, 40, 20);
+  rim.position.set(-3, 3, -3);
+  scene.add(rim);
+  const burst = new THREE.PointLight(0xffd88a, 0, 14);
+  burst.position.set(0, 1.8, .5);
+  scene.add(burst);
+
+  // ---- gift box ----
+  const gift = new THREE.Group();
+  scene.add(gift);
+  const wrap = new THREE.MeshPhysicalMaterial({ color: 0xc2185b, roughness: .4, clearcoat: 1, clearcoatRoughness: .15, transparent: true });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xffd36b, metalness: .6, roughness: .28, emissive: 0x3a2400, transparent: true });
+  const add = (parent, geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); parent.add(m); return m; };
+  add(gift, new RoundedBoxGeometry(2, 1.5, 2, 4, .05), wrap, 0, .75, 0);
+  add(gift, new THREE.BoxGeometry(2.02, 1.5, .32), gold, 0, .75, 0);
+  add(gift, new THREE.BoxGeometry(.32, 1.5, 2.02), gold, 0, .75, 0);
+  const lid = new THREE.Group();
+  lid.position.y = 1.5;
+  gift.add(lid);
+  add(lid, new RoundedBoxGeometry(2.16, .4, 2.16, 4, .06), wrap, 0, .2, 0);
+  add(lid, new THREE.BoxGeometry(2.18, .41, .32), gold, 0, .2, 0);
+  add(lid, new THREE.BoxGeometry(.32, .41, 2.18), gold, 0, .2, 0);
+  const loopGeo = new THREE.TorusGeometry(.3, .07, 16, 48);
+  for (const s of [-1, 1]) {
+    const loop = add(lid, loopGeo, gold, s * .3, .62, 0);
+    loop.scale.set(1, .75, 1.6);
+    loop.rotation.set(0, s * .25, s * -.55);
+  }
+  add(lid, new THREE.SphereGeometry(.13, 24, 16), gold, 0, .47, 0);
+
+  // ---- rose ----
+  const rose = new THREE.Group();
+  rose.position.y = .7;
+  rose.scale.setScalar(.001);
+  scene.add(rose);
+  const petalMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: .55,
+    sheen: .7, sheenRoughness: .5, sheenColor: new THREE.Color(0xb0203f) });
+  const red = [0x3a000c, 0x8e0c26, 0xc8173c];
+  const layers = [
+    { n: 3, w: .32, h: .5, r: .02, closed: -.3, open: -.12, cup: .55, curl: 0 },
+    { n: 4, w: .46, h: .6, r: .05, closed: -.22, open: .18, cup: .5, curl: .04 },
+    { n: 5, w: .6, h: .68, r: .08, closed: -.16, open: .52, cup: .42, curl: .1 },
+    { n: 6, w: .74, h: .75, r: .11, closed: -.1, open: .72, cup: .36, curl: .16 },
+    { n: 7, w: .86, h: .78, r: .14, closed: 0, open: .98, cup: .3, curl: .24 },
+  ];
+  const petals = [];
+  layers.forEach((L, i) => {
+    const geo = petalGeo(L.w, L.h, L.cup, L.curl, red);
+    for (let k = 0; k < L.n; k++) {
+      const pivot = new THREE.Group();
+      pivot.rotation.y = k / L.n * Math.PI * 2 + i * .7;
+      pivot.position.y = -i * .035;
+      const m = new THREE.Mesh(geo, petalMat);
+      m.position.z = L.r;
+      pivot.add(m);
+      rose.add(pivot);
+      petals.push({ m, closed: L.closed, open: L.open, delay: i * .11 });
+    }
+  });
+  function setBloom(t) {
+    for (const p of petals) p.m.rotation.x = lerp(p.closed, p.open, easeOut(clamp((t - p.delay) / .56)));
+  }
+  setBloom(0);
+
+  const green = new THREE.MeshStandardMaterial({ color: 0x1e5a24, roughness: .6, side: THREE.DoubleSide });
+  const leafGeo = petalGeo(.32, .42, .2, .1, [0x0f3d14, 0x1e5a24, 0x2e7d32]);
+  const leafMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6, side: THREE.DoubleSide });
+  for (let k = 0; k < 5; k++) { // sepals under the head
+    const pivot = new THREE.Group();
+    pivot.rotation.y = k / 5 * Math.PI * 2;
+    const m = new THREE.Mesh(leafGeo, leafMat);
+    m.scale.setScalar(.7);
+    m.rotation.x = 2.2;
+    m.position.set(0, -.08, .05);
+    pivot.add(m);
+    rose.add(pivot);
+  }
+  const stemCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, -.05, 0), new THREE.Vector3(.06, -.9, .02),
+    new THREE.Vector3(-.05, -1.8, .06), new THREE.Vector3(0, -2.6, 0)]);
+  rose.add(new THREE.Mesh(new THREE.TubeGeometry(stemCurve, 48, .045, 10), green));
+  for (const [y, a] of [[-1.1, .4], [-1.7, 3.5]]) {
+    const pivot = new THREE.Group();
+    pivot.position.y = y;
+    pivot.rotation.y = a;
+    const m = new THREE.Mesh(leafGeo, leafMat);
+    m.scale.setScalar(1.4);
+    m.rotation.x = 1.1;
+    pivot.add(m);
+    rose.add(pivot);
+  }
+
+  // ---- sparkles + falling petals ----
+  const N = 180, sp = new Float32Array(N * 3), vel = [];
+  const spGeo = new THREE.BufferGeometry();
+  spGeo.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+  const dot = document.createElement('canvas');
+  dot.width = dot.height = 64;
+  const dc = dot.getContext('2d'), grad = dc.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, '#fff'); grad.addColorStop(.3, 'rgba(255,220,150,.8)'); grad.addColorStop(1, 'rgba(255,200,120,0)');
+  dc.fillStyle = grad; dc.fillRect(0, 0, 64, 64);
+  const spMat = new THREE.PointsMaterial({ map: new THREE.CanvasTexture(dot), color: 0xffe9a8, size: .14, transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false });
+  scene.add(new THREE.Points(spGeo, spMat));
+  const smallPetal = petalGeo(.2, .24, .3, .08, red);
+  const falling = Array.from({ length: 16 }, () => {
+    const m = new THREE.Mesh(smallPetal, petalMat);
+    m.visible = false;
+    m.userData = { v: .35 + Math.random() * .45, s: (Math.random() - .5) * 3 };
+    scene.add(m);
+    return m;
+  });
+  const dropPetal = (m, top) => {
+    m.position.set((Math.random() - .5) * 4, top ? 4 + Math.random() * 3 : 5, (Math.random() - .5) * 3);
+    m.rotation.set(Math.random() * 6, Math.random() * 6, 0);
+  };
+
+  // ---- tap to open ----
+  $('giftHint').classList.add('show');
+  let opened = -1, finished = false, down = null;
+  canvas.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
+  canvas.addEventListener('pointerup', e => {
+    if (opened >= 0 || shakeAt >= 0 || !down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 12) return;
+    shakeAt = clock.elapsedTime;
+    $('giftHint').classList.remove('show');
+    buzz([20, 40, 20, 40, 20]);
+    sfx.key();
+  });
+  let shakeAt = -1;
+  const lidV = new THREE.Vector3();
+
+  function openLid(now) {
+    opened = now;
+    lidV.set(1.4, 6.5, -1.2);
+    buzz(120);
+    sfx.whoosh();
+    sfx.party();
+    for (let i = 0; i < N; i++) {
+      sp.set([0, 1.6, 0], i * 3);
+      const d = new THREE.Vector3().randomDirection().multiplyScalar(1.5 + Math.random() * 2.5);
+      d.y = Math.abs(d.y) + 1.5;
+      vel[i] = d;
+    }
+  }
+
+  const clock = new THREE.Clock();
+  let raf;
+  function loop() {
+    raf = requestAnimationFrame(loop);
+    const dt = Math.min(clock.getDelta(), .05), now = clock.elapsedTime;
+    if (opened < 0) {
+      gift.rotation.y += dt * .5;
+      gift.position.y = Math.sin(now * 2) * .06;
+      if (shakeAt >= 0) {
+        const k = now - shakeAt;
+        gift.rotation.z = Math.sin(k * 45) * .07 * (1 - k / .8);
+        gift.scale.setScalar(1 + Math.sin(k * 20) * .015);
+        if (k > .8) { gift.rotation.z = 0; gift.scale.setScalar(1); openLid(now); }
+      }
+    } else {
+      const a = now - opened;
+      if (lid.visible) {
+        lid.position.addScaledVector(lidV, dt);
+        lidV.y -= 9 * dt;
+        lid.rotation.x -= dt * 3;
+        lid.rotation.z -= dt * 1.6;
+        if (lid.position.y < -6) lid.visible = false;
+      }
+      burst.intensity = 90 * Math.exp(-a * 2.5);
+      spMat.opacity = Math.exp(-a * .9);
+      for (let i = 0; i < N; i++) {
+        vel[i].y -= 2.2 * dt;
+        sp[i * 3] += vel[i].x * dt; sp[i * 3 + 1] += vel[i].y * dt; sp[i * 3 + 2] += vel[i].z * dt;
+      }
+      spGeo.attributes.position.needsUpdate = true;
+
+      const r = clamp((a - .35) / 1.6);
+      rose.position.y = lerp(.7, 2.05, easeOut(r));
+      rose.scale.setScalar(Math.max(.001, backOut(r)));
+      if (!controls.enabled) {
+        const c = easeInOut(clamp((a - .3) / 2.4));
+        camera.position.lerpVectors(cam0, cam1, c);
+        controls.target.lerpVectors(tgt0, tgt1, c);
+        rose.rotation.y += dt * .35;
+      }
+      const s = clamp((a - 1.5) / 1.8);
+      gift.position.y = -3.5 * s * s;
+      wrap.opacity = gold.opacity = 1 - s;
+      gift.visible = s < 1;
+      setBloom(easeInOut(clamp((a - 1.7) / 4.5)));
+      rose.rotation.z = Math.sin(now * .9) * .03;
+
+      if (!finished && a > 6.4) {
+        finished = true;
+        controls.enabled = true;
+        controls.autoRotate = true;
+        sfx.chime();
+        buzz([30, 60, 30]);
+        falling.forEach(m => { dropPetal(m, true); m.visible = true; });
+        $('roseLine').classList.add('show');
+        setTimeout(() => $('roseNext').classList.add('show'), 2500);
+      }
+      for (const m of falling) {
+        if (!m.visible) continue;
+        m.position.y -= m.userData.v * dt;
+        m.position.x += Math.sin(now + m.userData.s) * .2 * dt;
+        m.rotation.x += m.userData.s * dt;
+        m.rotation.z += dt * .7;
+        if (m.position.y < -2) dropPetal(m, false);
+      }
+    }
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  loop();
+
+  $('roseNext').addEventListener('click', () => {
+    cancelAnimationFrame(raf);
+    removeEventListener('resize', resize);
+    renderer.dispose();
+    done();
+  }, { once: true });
+};
 </script>
 </body>
 </html>
