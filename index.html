@@ -525,8 +525,8 @@ window.startGift = function (done) {
   resize();
   addEventListener('resize', resize);
 
-  const cam0 = new THREE.Vector3(0, 2.4, 7.5), cam1 = new THREE.Vector3(0, 3.7, 5.6);
-  const tgt0 = new THREE.Vector3(0, .8, 0), tgt1 = new THREE.Vector3(0, 2.1, 0);
+  const cam0 = new THREE.Vector3(0, 2.4, 7.5), cam1 = new THREE.Vector3(0, 3, 6.2);
+  const tgt0 = new THREE.Vector3(0, .8, 0), tgt1 = new THREE.Vector3(0, 1.5, 0);
   camera.position.copy(cam0);
   const controls = new OrbitControls(camera, canvas);
   controls.target.copy(tgt0);
@@ -594,14 +594,16 @@ window.startGift = function (done) {
   // ---- lily bouquet (kept in `rose` so the animation code stays the same) ----
   const rose = new THREE.Group();
   rose.position.y = .3;
+  rose.scale.setScalar(.78);
+  rose.visible = false;
   scene.add(rose);
 
   // long pointed tepal that curls back at the tip: pink stripe, pale edges, dark spots
-  function lilyGeo(w, h) {
+  function lilyGeo(w, h, pal = {}) {
     const g = new THREE.PlaneGeometry(1, 1, 20, 36);
     const p = g.attributes.position, c = [], tmp = new THREE.Color();
-    const stripe = new THREE.Color(0xc8236a), edge = new THREE.Color(0xf0a3c6), throat = new THREE.Color(0xdfeab0), white = new THREE.Color(0xfff2f6),
-      spot = new THREE.Color(0x8e0f45);
+    const stripe = new THREE.Color(pal.stripe ?? 0xc8236a), edge = new THREE.Color(pal.edge ?? 0xf0a3c6),
+      throat = new THREE.Color(pal.throat ?? 0xdfeab0), white = new THREE.Color(0xfff2f6), spot = new THREE.Color(pal.spot ?? 0x8e0f45);
     for (let i = 0; i < p.count; i++) {
       const u = p.getX(i) * 2, v = p.getY(i) + .5;
       const prof = Math.sin(Math.PI * v) ** .8 * (v < .25 ? .45 + .55 * v / .25 : 1);
@@ -630,13 +632,13 @@ window.startGift = function (done) {
   const antherGeo = new THREE.CapsuleGeometry(.022, .09, 4, 8);
 
   const petals = [];
-  function lily(delay) {
+  function lily(delay, geos = [outerGeo, innerGeo]) {
     const f = new THREE.Group();
     for (let k = 0; k < 6; k++) {
       const outer = k % 2 === 0;
       const pivot = new THREE.Group();
       pivot.rotation.y = k * Math.PI / 3;
-      const m = new THREE.Mesh(outer ? outerGeo : innerGeo, petalMat);
+      const m = new THREE.Mesh(outer ? geos[0] : geos[1], petalMat);
       m.position.z = .04;
       pivot.add(m);
       f.add(pivot);
@@ -658,101 +660,119 @@ window.startGift = function (done) {
     f.add(st);
     return f;
   }
-  const bunch = [
-    { p: [0, 0, 0], r: [-.3, 0, 0], s: 1, d: 0 },
-    { p: [-.8, -.5, -.25], r: [-.25, 0, .6], s: .85, d: .15 },
-    { p: [.8, -.6, -.1], r: [-.2, 0, -.65], s: .8, d: .3 },
+  const whitePal = { stripe: 0xfff6ea, edge: 0xffffff, throat: 0xe6eeb0, spot: 0xf2dde2 };
+  const whiteGeos = [lilyGeo(.42, 1.05, whitePal), lilyGeo(.52, 1, whitePal)];
+  const bunch = [ // p: head position, r: tilt toward the viewer, w: white lily
+    { p: [0, .05, .4], r: [.6, 0, 0], s: 1, d: 0 },
+    { p: [.55, .25, -.15], r: [.25, 0, -.45], s: .85, d: .15 },
+    { p: [-.55, .2, -.1], r: [.3, 0, .5], s: .85, d: .25, w: true },
+    { p: [-.72, -.1, .35], r: [.75, 0, .6], s: .8, d: .35, w: true },
+    { p: [.72, -.12, .32], r: [.75, 0, -.6], s: .8, d: .3 },
+    { p: [.05, .4, -.45], r: [-.1, 0, 0], s: .8, d: .2 },
   ];
   for (const b of bunch) {
-    const f = lily(b.d);
+    const f = lily(b.d, b.w ? whiteGeos : undefined);
     f.position.set(...b.p);
     f.rotation.set(...b.r);
     f.scale.setScalar(b.s);
     rose.add(f);
-    const stem = new THREE.CatmullRomCurve3([new THREE.Vector3(b.p[0], b.p[1] - .02, b.p[2]),
-      new THREE.Vector3(b.p[0] * .6, b.p[1] - .7, b.p[2] * .6), new THREE.Vector3(0, -1.8, 0), new THREE.Vector3(0, -2.7, 0)]);
-    rose.add(new THREE.Mesh(new THREE.TubeGeometry(stem, 48, .04, 8), green));
-  }
-  const budProfile = [[0, 0], [.06, .05], [.1, .22], [.11, .42], [.08, .6], [.03, .72], [0, .76]].map(([x, y]) => new THREE.Vector2(x, y));
-  const budGeo = new THREE.LatheGeometry(budProfile, 24);
-  {
-    const p = budGeo.attributes.position, c = [], a = new THREE.Color(0x5f8f3a), b = new THREE.Color(0xd8578e), t = new THREE.Color();
-    for (let i = 0; i < p.count; i++) { t.copy(a).lerp(b, clamp((p.getY(i) - .15) / .5)); c.push(t.r, t.g, t.b); }
-    budGeo.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
-  }
-  const budMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .45, sheen: .4, ...clipped });
-  for (const [x, y, z, rx, rz] of [[-.35, -.25, .45, .35, .35], [.35, -.15, -.5, -.3, -.3]]) {
-    const bud = new THREE.Mesh(budGeo, budMat);
-    bud.position.set(x, y, z);
-    bud.rotation.set(rx, 0, rz);
-    rose.add(bud);
-    const stem = new THREE.CatmullRomCurve3([new THREE.Vector3(x, y, z), new THREE.Vector3(x * .5, y - .8, z * .5), new THREE.Vector3(0, -1.9, 0)]);
-    rose.add(new THREE.Mesh(new THREE.TubeGeometry(stem, 32, .025, 6), green));
+    const stem = new THREE.CatmullRomCurve3([new THREE.Vector3(...b.p), new THREE.Vector3(b.p[0] * .5, -.8, b.p[2] * .5),
+      new THREE.Vector3(0, -2.2, 0), new THREE.Vector3(0, -3.2, 0)]);
+    rose.add(new THREE.Mesh(new THREE.TubeGeometry(stem, 40, .035, 6), green));
   }
   function setBloom(t) {
     for (const p of petals) p.m.rotation.x = lerp(p.closed, p.open, easeOut(clamp((t - p.delay) / .56)));
   }
   setBloom(0);
 
-  const leafGeo = petalGeo(.22, 1.1, .25, .15, [0x1d4a1a, 0x2f6b2a, 0x3f8a35]);
-  const leafMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6, side: THREE.DoubleSide, ...clipped });
-  for (let k = 0; k < 7; k++) { // leaves peeking out of the wrap
-    const pivot = new THREE.Group();
-    pivot.position.y = -.85 + (k % 3) * .08;
-    pivot.rotation.y = k * 2.4;
-    const m = new THREE.Mesh(leafGeo, leafMat);
-    m.scale.setScalar(.55);
-    m.rotation.x = .7 + (k % 3) * .15;
-    pivot.add(m);
-    rose.add(pivot);
+  // green lily buds standing above the flowers
+  const budProfile = [[0, 0], [.05, .05], [.09, .22], [.1, .42], [.075, .6], [.03, .72], [0, .76]].map(([x, y]) => new THREE.Vector2(x, y));
+  const budGeo = new THREE.LatheGeometry(budProfile, 24);
+  {
+    const p = budGeo.attributes.position, c = [], a = new THREE.Color(0x4f8a2e), b = new THREE.Color(0xc4d97a), t = new THREE.Color();
+    for (let i = 0; i < p.count; i++) { t.copy(a).lerp(b, clamp((p.getY(i) - .2) / .55)); c.push(t.r, t.g, t.b); }
+    budGeo.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
+  }
+  const budMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .4, sheen: .4, ...clipped });
+  for (const [x, y, z, rx, rz] of [[-.45, .55, -.35, -.2, .35], [-.85, .35, 0, 0, .8], [.55, .6, -.35, -.2, -.45],
+    [.92, .25, .1, .3, -.9], [-.15, .75, -.55, -.3, .15]]) {
+    const bud = new THREE.Mesh(budGeo, budMat);
+    bud.position.set(x, y, z);
+    bud.rotation.set(rx, 0, rz);
+    rose.add(bud);
+    const stem = new THREE.CatmullRomCurve3([new THREE.Vector3(x, y, z), new THREE.Vector3(x * .5, -.5, z * .5), new THREE.Vector3(0, -2, 0)]);
+    rose.add(new THREE.Mesh(new THREE.TubeGeometry(stem, 32, .022, 6), green));
   }
 
-  const paper = document.createElement('canvas');
-  paper.width = 1024; paper.height = 512;
-  {
-    const pc = paper.getContext('2d');
-    const bg = pc.createLinearGradient(0, 0, 0, 512);
-    bg.addColorStop(0, '#fffdf8'); bg.addColorStop(1, '#efe9df');
-    pc.fillStyle = bg; pc.fillRect(0, 0, 1024, 512);
-    pc.strokeStyle = '#c9a03c'; pc.lineWidth = 9; pc.lineCap = 'round';
-    for (let i = 0; i < 7; i++) {
-      pc.beginPath();
-      for (let y = 0; y <= 512; y += 8) {
-        const x = 70 + i * 146 + Math.sin(y / 70 + i) * 26;
-        y ? pc.lineTo(x, y) : pc.moveTo(x, y);
-      }
-      pc.stroke();
-    }
+  // baby's breath and fern filling the gaps between the lilies
+  const dummy = new THREE.Object3D();
+  const breath = new THREE.InstancedMesh(new THREE.SphereGeometry(.028, 6, 4),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .8, ...clipped }), 520);
+  for (let k = 0; k < 520; k++) {
+    const rad = Math.sqrt(Math.random()) * .95, th = Math.random() * Math.PI * 2;
+    dummy.position.set(Math.sin(th) * rad, -.15 + Math.random() * .2 + (1 - rad) * .2, Math.cos(th) * rad);
+    dummy.updateMatrix();
+    breath.setMatrixAt(k, dummy.matrix);
   }
-  const paperTex = new THREE.CanvasTexture(paper);
-  paperTex.colorSpace = THREE.SRGBColorSpace;
-  const paperMat = new THREE.MeshPhysicalMaterial({ map: paperTex, roughness: .55, sheen: .3, side: THREE.DoubleSide, ...clipped });
-  for (let k = 0; k < 3; k++) {
-    const h = 1.9;
-    const g = new THREE.CylinderGeometry(.95 + k * .03, .13 + k * .01, h, 48, 12, true, k * 2.1, 3.4);
+  rose.add(breath);
+  const fern = new THREE.InstancedMesh(new THREE.PlaneGeometry(.035, .2),
+    new THREE.MeshStandardMaterial({ color: 0x1f4f22, roughness: .7, side: THREE.DoubleSide, ...clipped }), 320);
+  for (let k = 0; k < 320; k++) {
+    const rad = Math.sqrt(Math.random()) * 1, th = Math.random() * Math.PI * 2;
+    dummy.position.set(Math.sin(th) * rad, -.2 + Math.random() * .2, Math.cos(th) * rad);
+    dummy.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+    dummy.updateMatrix();
+    fern.setMatrixAt(k, dummy.matrix);
+  }
+  rose.add(fern);
+
+  // pink wrapping paper: layered sheets, taller at the back, cinched into a narrow neck
+  const wrapMat = new THREE.MeshPhysicalMaterial({ color: 0xe8a0cf, roughness: .75, sheen: .4,
+    sheenColor: new THREE.Color(0xffffff), side: THREE.DoubleSide, ...clipped });
+  for (let k = 0; k < 6; k++) {
+    const len = 1.7, start = k * Math.PI / 3 + .2 - len / 2, mid = start + len / 2;
+    const back = (1 - Math.cos(mid)) / 2; // 0 at the front, 1 at the back
+    const h = 1.85 + 1 * back;
+    const g = new THREE.CylinderGeometry(1.05 + k * .012, .17, h, 32, 10, true, start, len);
     const p = g.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-      const t = (y + h / 2) / h, th = Math.atan2(x, z);
-      const flare = 1 + .1 * Math.sin(th * 5 + k) * t * t;
-      p.setXYZ(i, x * flare, y + .14 * Math.sin(th * 3 + k * 2) * t ** 3, z * flare);
+    for (let n = 0; n < p.count; n++) {
+      const x = p.getX(n), y = p.getY(n), z = p.getZ(n);
+      const t = (y + h / 2) / h, th = Math.atan2(x, z), along = clamp((th - start + Math.PI * 4) % (Math.PI * 2) / len);
+      const flare = 1 + .12 * t * t;
+      p.setXYZ(n, x * flare, y + .3 * along * t ** 4, z * flare); // slanted top edge like a folded corner
     }
     g.computeVertexNormals();
-    const sheet = new THREE.Mesh(g, paperMat);
-    sheet.position.y = -.35 - h / 2;
+    const sheet = new THREE.Mesh(g, wrapMat);
+    sheet.position.y = -.45 - 1.85 + h / 2;
     rose.add(sheet);
   }
-  const satin = new THREE.MeshPhysicalMaterial({ color: 0xc9a27a, roughness: .35, sheen: 1, sheenColor: new THREE.Color(0xf3dcc0), ...clipped });
-  const band = new THREE.Mesh(new THREE.TorusGeometry(.33, .05, 12, 48), satin);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(.17, .22, 1, 24, 1, true), wrapMat);
+  neck.position.y = -2.8;
+  rose.add(neck);
+
+  // pink satin pom-pom bow at the neck
+  const satin = new THREE.MeshPhysicalMaterial({ color: 0xf48fbf, roughness: .3, sheen: 1,
+    sheenColor: new THREE.Color(0xffd6ea), side: THREE.DoubleSide, ...clipped });
+  const band = new THREE.Mesh(new THREE.TorusGeometry(.2, .035, 10, 40), satin);
   band.rotation.x = Math.PI / 2;
-  band.position.y = -1.9;
+  band.position.y = -2.3;
   rose.add(band);
+  const loopGeo2 = new THREE.TorusGeometry(.17, .05, 10, 32);
+  for (let k = 0; k < 10; k++) {
+    const a = k * Math.PI / 5, lp = new THREE.Mesh(loopGeo2, satin);
+    lp.scale.set(1, .42, 1);
+    lp.rotation.set(0, 0, a);
+    lp.position.set(Math.cos(a) * .15, -2.3 + Math.sin(a) * .15, .26 + (k % 2) * .03);
+    rose.add(lp);
+  }
+  const knot = new THREE.Mesh(new THREE.SphereGeometry(.08, 16, 12), satin);
+  knot.position.set(0, -2.3, .3);
+  rose.add(knot);
   for (const sgn of [-1, 1]) {
-    const bow = new THREE.Mesh(new THREE.TorusGeometry(.17, .04, 10, 32), satin);
-    bow.scale.set(1, .6, 1);
-    bow.position.set(sgn * .17, -1.88, .36);
-    bow.rotation.set(0, 0, sgn * .4);
-    rose.add(bow);
+    const tail = new THREE.Mesh(new THREE.PlaneGeometry(.09, .6), satin);
+    tail.position.set(sgn * .1, -2.62, .27);
+    tail.rotation.z = sgn * .25;
+    rose.add(tail);
   }
 
   // ---- sparkles + falling petals ----
@@ -798,6 +818,7 @@ window.startGift = function (done) {
     opened = now;
     buzz(60);
     sfx.whoosh();
+    rose.visible = true;
     for (let i = 0; i < N; i++) {
       sp.set([(Math.random() - .5) * 1.7, .4 + Math.random() * 1.1, (Math.random() - .5) * 1.7], i * 3);
       vel[i] = new THREE.Vector3((Math.random() - .5) * .25, .3 + Math.random() * .6, (Math.random() - .5) * .25);
@@ -844,7 +865,6 @@ window.startGift = function (done) {
         const c = easeInOut(clamp((a - 3.2) / 3.8));
         camera.position.lerpVectors(cam0, cam1, c);
         controls.target.lerpVectors(tgt0, tgt1, c);
-        rose.rotation.y += dt * .35;
       }
       const s = clamp((a - 5) / 2);
       gift.position.y = -3.5 * s * s;
