@@ -176,19 +176,23 @@ const $ = id => document.getElementById(id);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 // ---- sound (generated with Web Audio, no files needed) ----
-let ac, master, muted = false;
+let ac, master, tuneBus, muted = false, tuneOn = true, songBuf = null;
 function initAudio() {
   try {
     ac = new (window.AudioContext || window.webkitAudioContext)();
     master = ac.createGain();
     master.gain.value = .6;
     master.connect(ac.destination);
+    tuneBus = ac.createGain();
+    tuneBus.connect(master);
+    // decode the chat song early so it is ready when the chat opens
+    fetch('song.mp3').then(r => r.arrayBuffer()).then(b => ac.decodeAudioData(b)).then(b => { songBuf = b; }).catch(() => {});
     if (ac.state === 'suspended') ac.resume();
   } catch (e) {
     ac = null; // no sound in this browser, the rest still runs
   }
 }
-function tone(freq, start, dur, { type = 'sine', vol = .2, attack = .01 } = {}) {
+function tone(freq, start, dur, { type = 'sine', vol = .2, attack = .01, dest = master } = {}) {
   if (!ac) return;
   try {
   const t = ac.currentTime + start;
@@ -197,7 +201,7 @@ function tone(freq, start, dur, { type = 'sine', vol = .2, attack = .01 } = {}) 
   g.gain.setValueAtTime(0, t);
   g.gain.linearRampToValueAtTime(vol, t + attack);
   g.gain.exponentialRampToValueAtTime(.0001, t + dur);
-  o.connect(g); g.connect(master);
+  o.connect(g); g.connect(dest);
   o.start(t); o.stop(t + dur + .05);
   } catch (e) {}
 }
@@ -226,15 +230,31 @@ const sfx = {
 const tune = [[392,.75],[392,.25],[440,1],[392,1],[523,1],[494,2],[392,.75],[392,.25],[440,1],[392,1],[587,1],[523,2],
   [392,.75],[392,.25],[784,1],[659,1],[523,1],[494,1],[440,2],[698,.75],[698,.25],[659,1],[523,1],[587,1],[523,3]];
 function playTune() {
-  if (!ac) return;
+  if (!ac || !tuneOn) return;
   const beat = .6;
   let t = 0;
   for (const [f, b] of tune) {
-    tone(f, t, b * beat + 1.2, { vol: .045, attack: .005 });
-    tone(f * 2, t, .6, { vol: .012, attack: .005 });
+    tone(f, t, b * beat + 1.2, { vol: .045, attack: .005, dest: tuneBus });
+    tone(f * 2, t, .6, { vol: .012, attack: .005, dest: tuneBus });
     t += b * beat;
   }
   setTimeout(playTune, (t + 4) * 1000);
+}
+// chat song: starts almost silent and swells while the birthday tune fades out
+function startSong(tries = 0) {
+  if (!ac) return;
+  if (!songBuf) { if (tries < 20) setTimeout(() => startSong(tries + 1), 500); return; }
+  const now = ac.currentTime, src = ac.createBufferSource(), g = ac.createGain();
+  src.buffer = songBuf;
+  src.loop = true;
+  g.gain.setValueAtTime(.0001, now);
+  g.gain.exponentialRampToValueAtTime(.08, now + 4);
+  g.gain.linearRampToValueAtTime(.7, now + 16);
+  src.connect(g); g.connect(master);
+  src.start();
+  tuneBus.gain.setValueAtTime(1, now);
+  tuneBus.gain.linearRampToValueAtTime(0, now + 12);
+  setTimeout(() => { tuneOn = false; }, 12000);
 }
 $('mute').onclick = () => {
   if (!master) return;
@@ -379,6 +399,7 @@ async function openChat() {
   await say(box, 'Life e ja korte chao, ami jani tumi parbe. Always support thakbe 💪', 1200);
   await say(box, 'Kichu bolte chaile ekhane likho, ami pabo 💌', 900);
   $('replyForm').classList.remove('hidden');
+  startSong();
   $('replyText').focus();
 }
 
@@ -487,6 +508,8 @@ window.startGift = function (done) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.localClippingEnabled = true;
+  const clip = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), .04).texture;
@@ -527,9 +550,33 @@ window.startGift = function (done) {
   const wrap = new THREE.MeshPhysicalMaterial({ color: 0xc2185b, roughness: .4, clearcoat: 1, clearcoatRoughness: .15, transparent: true });
   const gold = new THREE.MeshStandardMaterial({ color: 0xffd36b, metalness: .6, roughness: .28, emissive: 0x3a2400, transparent: true });
   const add = (parent, geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); parent.add(m); return m; };
-  add(gift, new RoundedBoxGeometry(2, 1.5, 2, 4, .05), wrap, 0, .75, 0);
-  add(gift, new THREE.BoxGeometry(2.02, 1.5, .32), gold, 0, .75, 0);
-  add(gift, new THREE.BoxGeometry(.32, 1.5, 2.02), gold, 0, .75, 0);
+  add(gift, new THREE.BoxGeometry(2, .06, 2), wrap, 0, .03, 0);
+  for (const sgn of [-1, 1]) {
+    add(gift, new RoundedBoxGeometry(2, 1.5, .06, 2, .02), wrap, 0, .75, sgn * .97);
+    add(gift, new RoundedBoxGeometry(.06, 1.5, 1.88, 2, .02), wrap, sgn * .97, .75, 0);
+    add(gift, new THREE.BoxGeometry(.32, 1.5, .02), gold, 0, .75, sgn * 1.01);
+    add(gift, new THREE.BoxGeometry(.02, 1.5, .32), gold, sgn * 1.01, .75, 0);
+  }
+  const tissueMat = new THREE.MeshStandardMaterial({ color: 0xf7b9cf, roughness: .95, side: THREE.DoubleSide, transparent: true });
+  const tissues = [];
+  for (let k = 0; k < 4; k++) {
+    const g = new THREE.PlaneGeometry(1.9, .8, 14, 6);
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i) + .4;
+      p.setXYZ(i, x, y, (Math.sin(x * 7 + k) * .04 + (Math.random() - .5) * .05) * y);
+    }
+    g.computeVertexNormals();
+    const pivot = new THREE.Group();
+    pivot.rotation.y = k * Math.PI / 2;
+    const hinge = new THREE.Group();
+    hinge.position.set(0, 1.48, .93);
+    hinge.rotation.x = -1.45;
+    hinge.add(new THREE.Mesh(g, tissueMat));
+    pivot.add(hinge);
+    gift.add(pivot);
+    tissues.push(hinge);
+  }
   const lid = new THREE.Group();
   lid.position.y = 1.5;
   gift.add(lid);
@@ -546,25 +593,26 @@ window.startGift = function (done) {
 
   // ---- lily bouquet (kept in `rose` so the animation code stays the same) ----
   const rose = new THREE.Group();
-  rose.position.y = .7;
-  rose.scale.setScalar(.001);
+  rose.position.y = .3;
   scene.add(rose);
 
   // long pointed tepal that curls back at the tip: pink stripe, pale edges, dark spots
   function lilyGeo(w, h) {
-    const g = new THREE.PlaneGeometry(1, 1, 16, 28);
+    const g = new THREE.PlaneGeometry(1, 1, 20, 36);
     const p = g.attributes.position, c = [], tmp = new THREE.Color();
-    const stripe = new THREE.Color(0xc8236a), edge = new THREE.Color(0xf0a3c6), throat = new THREE.Color(0xf1efc8),
+    const stripe = new THREE.Color(0xc8236a), edge = new THREE.Color(0xf0a3c6), throat = new THREE.Color(0xdfeab0), white = new THREE.Color(0xfff2f6),
       spot = new THREE.Color(0x8e0f45);
     for (let i = 0; i < p.count; i++) {
       const u = p.getX(i) * 2, v = p.getY(i) + .5;
       const prof = Math.sin(Math.PI * v) ** .8 * (v < .25 ? .45 + .55 * v / .25 : 1);
-      const z = -.4 * u * u * w * .5 * prof + .6 * h * Math.max(0, v - .4) ** 2 + .015 * Math.sin(v * 20) * Math.abs(u);
+      const z = -.4 * u * u * w * .5 * prof + .6 * h * Math.max(0, v - .4) ** 2 + .03 * Math.sin(v * 22 + u) * Math.abs(u) ** 3
+        + .03 * h * Math.exp(-((u * 5) ** 2)) * Math.sin(Math.PI * v);
       p.setXYZ(i, u * w * .5 * prof, v * h, z);
       tmp.copy(edge).lerp(stripe, (1 - Math.abs(u)) ** .9);
+      if (Math.abs(u) > .8) tmp.lerp(white, (Math.abs(u) - .8) * 3);
       if (v < .22) tmp.lerp(throat, 1 - v / .22);
       const hash = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
-      if (hash > .9 && v > .15 && v < .6 && Math.abs(u) < .65) tmp.lerp(spot, .8);
+      if (hash > .88 && v > .15 && v < .6 && Math.abs(u) < .65) tmp.lerp(spot, .8);
       c.push(tmp.r, tmp.g, tmp.b);
     }
     g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
@@ -572,12 +620,13 @@ window.startGift = function (done) {
     return g;
   }
   const petalMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: .5,
-    sheen: .5, sheenRoughness: .4, sheenColor: new THREE.Color(0xffc0dc) });
+    sheen: .6, sheenRoughness: .4, sheenColor: new THREE.Color(0xffc0dc), clippingPlanes: [clip] });
   const outerGeo = lilyGeo(.42, 1.05), innerGeo = lilyGeo(.52, 1);
-  const green = new THREE.MeshStandardMaterial({ color: 0x2f6b2a, roughness: .6, side: THREE.DoubleSide });
-  const filMat = new THREE.MeshStandardMaterial({ color: 0xd9e6b0, roughness: .6 });
-  const antherMat = new THREE.MeshStandardMaterial({ color: 0x9a4414, roughness: .9 });
-  const stigmaMat = new THREE.MeshStandardMaterial({ color: 0x6f8f3a, roughness: .5 });
+  const clipped = { clippingPlanes: [clip] };
+  const green = new THREE.MeshStandardMaterial({ color: 0x2f6b2a, roughness: .6, side: THREE.DoubleSide, ...clipped });
+  const filMat = new THREE.MeshStandardMaterial({ color: 0xd9e6b0, roughness: .6, ...clipped });
+  const antherMat = new THREE.MeshStandardMaterial({ color: 0x9a4414, roughness: .9, ...clipped });
+  const stigmaMat = new THREE.MeshStandardMaterial({ color: 0x6f8f3a, roughness: .5, ...clipped });
   const antherGeo = new THREE.CapsuleGeometry(.022, .09, 4, 8);
 
   const petals = [];
@@ -591,7 +640,8 @@ window.startGift = function (done) {
       m.position.z = .04;
       pivot.add(m);
       f.add(pivot);
-      petals.push({ m, closed: -.08, open: outer ? 1.2 : 1.02, delay: delay + (outer ? 0 : .08) });
+      m.rotation.x = -.35;
+      petals.push({ m, closed: -.35, open: outer ? 1.2 : 1.02, delay: delay + (outer ? 0 : .08) });
       const a = k * Math.PI / 3 + .5, sx = Math.sin(a), sz = Math.cos(a);
       const fil = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(sx * .07, .35, sz * .07),
         new THREE.Vector3(sx * .2, .62, sz * .2)]);
@@ -623,25 +673,42 @@ window.startGift = function (done) {
       new THREE.Vector3(b.p[0] * .6, b.p[1] - .7, b.p[2] * .6), new THREE.Vector3(0, -1.8, 0), new THREE.Vector3(0, -2.7, 0)]);
     rose.add(new THREE.Mesh(new THREE.TubeGeometry(stem, 48, .04, 8), green));
   }
+  const budProfile = [[0, 0], [.06, .05], [.1, .22], [.11, .42], [.08, .6], [.03, .72], [0, .76]].map(([x, y]) => new THREE.Vector2(x, y));
+  const budGeo = new THREE.LatheGeometry(budProfile, 24);
+  {
+    const p = budGeo.attributes.position, c = [], a = new THREE.Color(0x5f8f3a), b = new THREE.Color(0xd8578e), t = new THREE.Color();
+    for (let i = 0; i < p.count; i++) { t.copy(a).lerp(b, clamp((p.getY(i) - .15) / .5)); c.push(t.r, t.g, t.b); }
+    budGeo.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
+  }
+  const budMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: .45, sheen: .4, ...clipped });
+  for (const [x, y, z, rx, rz] of [[-.35, -.25, .45, .35, .35], [.35, -.15, -.5, -.3, -.3]]) {
+    const bud = new THREE.Mesh(budGeo, budMat);
+    bud.position.set(x, y, z);
+    bud.rotation.set(rx, 0, rz);
+    rose.add(bud);
+    const stem = new THREE.CatmullRomCurve3([new THREE.Vector3(x, y, z), new THREE.Vector3(x * .5, y - .8, z * .5), new THREE.Vector3(0, -1.9, 0)]);
+    rose.add(new THREE.Mesh(new THREE.TubeGeometry(stem, 32, .025, 6), green));
+  }
   function setBloom(t) {
     for (const p of petals) p.m.rotation.x = lerp(p.closed, p.open, easeOut(clamp((t - p.delay) / .56)));
   }
   setBloom(0);
 
   const leafGeo = petalGeo(.22, 1.1, .25, .15, [0x1d4a1a, 0x2f6b2a, 0x3f8a35]);
-  const leafMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6, side: THREE.DoubleSide });
-  for (const [y, a] of [[-1.3, .5], [-1.55, 2.6], [-1.9, 4.4], [-1.1, 3.6]]) {
+  const leafMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6, side: THREE.DoubleSide, ...clipped });
+  for (let k = 0; k < 10; k++) { // leaves spiral up the stems
     const pivot = new THREE.Group();
-    pivot.position.y = y;
-    pivot.rotation.y = a;
+    pivot.position.y = -2.3 + k * .17;
+    pivot.rotation.y = k * 2.4;
     const m = new THREE.Mesh(leafGeo, leafMat);
-    m.rotation.x = .9;
+    m.scale.setScalar(1 - k * .05);
+    m.rotation.x = .7 + (k % 3) * .15;
     pivot.add(m);
     rose.add(pivot);
   }
 
   // ---- sparkles + falling petals ----
-  const N = 180, sp = new Float32Array(N * 3), vel = [];
+  const N = 110, sp = new Float32Array(N * 3), vel = [];
   const spGeo = new THREE.BufferGeometry();
   spGeo.setAttribute('position', new THREE.BufferAttribute(sp, 3));
   const dot = document.createElement('canvas');
@@ -649,7 +716,7 @@ window.startGift = function (done) {
   const dc = dot.getContext('2d'), grad = dc.createRadialGradient(32, 32, 0, 32, 32, 32);
   grad.addColorStop(0, '#fff'); grad.addColorStop(.3, 'rgba(255,220,150,.8)'); grad.addColorStop(1, 'rgba(255,200,120,0)');
   dc.fillStyle = grad; dc.fillRect(0, 0, 64, 64);
-  const spMat = new THREE.PointsMaterial({ map: new THREE.CanvasTexture(dot), color: 0xffe9a8, size: .14, transparent: true, opacity: 0,
+  const spMat = new THREE.PointsMaterial({ map: new THREE.CanvasTexture(dot), color: 0xffe9a8, size: .1, transparent: true, opacity: 0,
     blending: THREE.AdditiveBlending, depthWrite: false });
   scene.add(new THREE.Points(spGeo, spMat));
   const smallPetal = lilyGeo(.16, .38);
@@ -677,19 +744,14 @@ window.startGift = function (done) {
     sfx.key();
   });
   let shakeAt = -1;
-  const lidV = new THREE.Vector3();
 
   function openLid(now) {
     opened = now;
-    lidV.set(1.4, 6.5, -1.2);
-    buzz(120);
+    buzz(60);
     sfx.whoosh();
-    sfx.party();
     for (let i = 0; i < N; i++) {
-      sp.set([0, 1.6, 0], i * 3);
-      const d = new THREE.Vector3().randomDirection().multiplyScalar(1.5 + Math.random() * 2.5);
-      d.y = Math.abs(d.y) + 1.5;
-      vel[i] = d;
+      sp.set([(Math.random() - .5) * 1.7, .4 + Math.random() * 1.1, (Math.random() - .5) * 1.7], i * 3);
+      vel[i] = new THREE.Vector3((Math.random() - .5) * .25, .3 + Math.random() * .6, (Math.random() - .5) * .25);
     }
   }
 
@@ -709,38 +771,38 @@ window.startGift = function (done) {
       }
     } else {
       const a = now - opened;
-      if (lid.visible) {
-        lid.position.addScaledVector(lidV, dt);
-        lidV.y -= 9 * dt;
-        lid.rotation.x -= dt * 3;
-        lid.rotation.z -= dt * 1.6;
-        if (lid.position.y < -6) lid.visible = false;
-      }
-      burst.intensity = 90 * Math.exp(-a * 2.5);
-      spMat.opacity = Math.exp(-a * .9);
+      // lid: lift, then slide off and lean against the box
+      const l1 = easeOut(clamp(a / .7)), l2 = clamp((a - .7) / .9);
+      lid.position.set(1.62 * easeInOut(l2), 1.5 + .7 * l1 - 1.05 * l2 * l2, .25 * l2);
+      lid.rotation.set(-.12 * l1 * (1 - l2), 0, -1.38 * l2 * l2 + (a > 1.6 ? .05 * Math.sin((a - 1.6) * 18) * Math.exp(-(a - 1.6) * 6) : 0));
+      if (a > 1.6 && !lid.userData.landed) { lid.userData.landed = true; noise(.25, .5, 300); buzz(40); }
+      const tOpen = easeOut(clamp((a - .5) / 1.2));
+      tissues.forEach((t, i) => { t.rotation.x = lerp(-1.45, .35 + i * .05, tOpen); });
+      burst.position.set(0, 1.1, 0);
+      burst.intensity = 30 * clamp(a / .6) * (.6 + .4 * Math.exp(-a * .5));
+      spMat.opacity = clamp(a / .8) * (1 - clamp((a - 5) / 3));
       for (let i = 0; i < N; i++) {
-        vel[i].y -= 2.2 * dt;
         sp[i * 3] += vel[i].x * dt; sp[i * 3 + 1] += vel[i].y * dt; sp[i * 3 + 2] += vel[i].z * dt;
       }
       spGeo.attributes.position.needsUpdate = true;
 
-      const r = clamp((a - .35) / 1.6);
-      rose.position.y = lerp(.7, 2.05, easeOut(r));
-      rose.scale.setScalar(Math.max(.001, backOut(r)));
+      const r = easeInOut(clamp((a - .9) / 2.8));
+      rose.position.set(Math.sin(a * 1.3) * .03 * (1 - r), lerp(.3, 2.05, r), 0);
       if (!controls.enabled) {
-        const c = easeInOut(clamp((a - .3) / 2.4));
+        const c = easeInOut(clamp((a - 3.2) / 3.8));
         camera.position.lerpVectors(cam0, cam1, c);
         controls.target.lerpVectors(tgt0, tgt1, c);
         rose.rotation.y += dt * .35;
       }
-      const s = clamp((a - 1.5) / 1.8);
+      const s = clamp((a - 5) / 2);
       gift.position.y = -3.5 * s * s;
-      wrap.opacity = gold.opacity = 1 - s;
+      wrap.opacity = gold.opacity = tissueMat.opacity = 1 - s;
       gift.visible = s < 1;
-      setBloom(easeInOut(clamp((a - 1.7) / 4.5)));
+      clip.constant = gift.visible ? -(gift.position.y + .07) : 100;
+      setBloom(easeInOut(clamp((a - 2.4) / 5)));
       rose.rotation.z = Math.sin(now * .9) * .03;
 
-      if (!finished && a > 6.4) {
+      if (!finished && a > 7.6) {
         finished = true;
         controls.enabled = true;
         controls.autoRotate = true;
