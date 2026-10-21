@@ -133,7 +133,7 @@
   <!-- 4: rose -->
   <div class="scene hidden" id="rose">
     <canvas id="gl"></canvas>
-    <div class="tap" id="giftHint">Tomar jonno ekta gift 🎁 tap koro</div>
+    <div class="tap" id="giftHint">👆 Gift box ta te tap koro</div>
     <div class="rose-wrap" id="roseFallback"><div class="glow">
       <svg class="rose" viewBox="0 0 200 320" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -248,8 +248,8 @@ function startSong(tries = 0) {
   src.buffer = songBuf;
   src.loop = true;
   g.gain.setValueAtTime(.0001, now);
-  g.gain.exponentialRampToValueAtTime(.08, now + 4);
-  g.gain.linearRampToValueAtTime(.7, now + 16);
+  g.gain.exponentialRampToValueAtTime(.04, now + 8);
+  g.gain.linearRampToValueAtTime(.6, now + 35);
   src.connect(g); g.connect(master);
   src.start();
   tuneBus.gain.setValueAtTime(1, now);
@@ -735,9 +735,10 @@ window.startGift = function (done) {
   // ---- tap to open ----
   $('giftHint').classList.add('show');
   let opened = -1, finished = false, down = null;
-  canvas.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
-  canvas.addEventListener('pointerup', e => {
-    if (opened >= 0 || shakeAt >= 0 || !down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 12) return;
+  const sceneEl = $('rose');
+  sceneEl.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
+  sceneEl.addEventListener('pointerup', e => {
+    if (opened >= 0 || shakeAt >= 0 || !down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 25) return;
     shakeAt = clock.elapsedTime;
     $('giftHint').classList.remove('show');
     buzz([20, 40, 20, 40, 20]);
@@ -763,6 +764,9 @@ window.startGift = function (done) {
     if (opened < 0) {
       gift.rotation.y += dt * .5;
       gift.position.y = Math.sin(now * 2) * .06;
+      // soft glow pulse so it is clear the box wants a tap
+      burst.position.set(0, 2.6, 1.5);
+      burst.intensity = shakeAt < 0 ? 6 + 6 * Math.sin(now * 3) : 0;
       if (shakeAt >= 0) {
         const k = now - shakeAt;
         gift.rotation.z = Math.sin(k * 45) * .07 * (1 - k / .8);
