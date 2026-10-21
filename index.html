@@ -602,7 +602,7 @@ window.startGift = function (done) {
   function lilyGeo(w, h, pal = {}) {
     const g = new THREE.PlaneGeometry(1, 1, 20, 36);
     const p = g.attributes.position, c = [], tmp = new THREE.Color();
-    const stripe = new THREE.Color(pal.stripe ?? 0xc8236a), edge = new THREE.Color(pal.edge ?? 0xf0a3c6),
+    const stripe = new THREE.Color(pal.stripe ?? 0xa80d50), edge = new THREE.Color(pal.edge ?? 0xe45c9a),
       throat = new THREE.Color(pal.throat ?? 0xdfeab0), white = new THREE.Color(0xfff2f6), spot = new THREE.Color(pal.spot ?? 0x8e0f45);
     for (let i = 0; i < p.count; i++) {
       const u = p.getX(i) * 2, v = p.getY(i) + .5;
@@ -610,8 +610,8 @@ window.startGift = function (done) {
       const z = -.4 * u * u * w * .5 * prof + .6 * h * Math.max(0, v - .4) ** 2 + .03 * Math.sin(v * 22 + u) * Math.abs(u) ** 3
         + .03 * h * Math.exp(-((u * 5) ** 2)) * Math.sin(Math.PI * v);
       p.setXYZ(i, u * w * .5 * prof, v * h, z);
-      tmp.copy(edge).lerp(stripe, (1 - Math.abs(u)) ** .9);
-      if (Math.abs(u) > .8) tmp.lerp(white, (Math.abs(u) - .8) * 3);
+      tmp.copy(edge).lerp(stripe, (1 - Math.abs(u)) ** .6);
+      if (Math.abs(u) > .9) tmp.lerp(white, (Math.abs(u) - .9) * 3);
       if (v < .22) tmp.lerp(throat, 1 - v / .22);
       const hash = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
       if (hash > .88 && v > .15 && v < .6 && Math.abs(u) < .65) tmp.lerp(spot, .8);
@@ -622,7 +622,7 @@ window.startGift = function (done) {
     return g;
   }
   const petalMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: .5,
-    sheen: .6, sheenRoughness: .4, sheenColor: new THREE.Color(0xffc0dc), clippingPlanes: [clip] });
+    sheen: .35, sheenRoughness: .5, sheenColor: new THREE.Color(0xe0408a), clippingPlanes: [clip] });
   const outerGeo = lilyGeo(.42, 1.05), innerGeo = lilyGeo(.52, 1);
   const clipped = { clippingPlanes: [clip] };
   const green = new THREE.MeshStandardMaterial({ color: 0x2f6b2a, roughness: .6, side: THREE.DoubleSide, ...clipped });
@@ -665,8 +665,8 @@ window.startGift = function (done) {
   const bunch = [ // p: head position, r: tilt toward the viewer, w: white lily
     { p: [0, .05, .4], r: [.6, 0, 0], s: 1, d: 0 },
     { p: [.55, .25, -.15], r: [.25, 0, -.45], s: .85, d: .15 },
-    { p: [-.55, .2, -.1], r: [.3, 0, .5], s: .85, d: .25, w: true },
-    { p: [-.72, -.1, .35], r: [.75, 0, .6], s: .8, d: .35, w: true },
+    { p: [-.55, .2, -.1], r: [.3, 0, .5], s: .85, d: .25 },
+    { p: [-.72, -.1, .35], r: [.75, 0, .6], s: .8, d: .35 },
     { p: [.72, -.12, .32], r: [.75, 0, -.6], s: .8, d: .3 },
     { p: [.05, .4, -.45], r: [-.1, 0, 0], s: .8, d: .2 },
   ];
