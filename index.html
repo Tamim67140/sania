@@ -248,8 +248,8 @@ function startSong(tries = 0) {
   src.buffer = songBuf;
   src.loop = true;
   g.gain.setValueAtTime(.0001, now);
-  g.gain.exponentialRampToValueAtTime(.04, now + 8);
-  g.gain.linearRampToValueAtTime(.6, now + 35);
+  g.gain.exponentialRampToValueAtTime(.02, now + 8);
+  g.gain.linearRampToValueAtTime(.3, now + 35);
   src.connect(g); g.connect(master);
   src.start();
   tuneBus.gain.setValueAtTime(1, now);
@@ -696,15 +696,63 @@ window.startGift = function (done) {
 
   const leafGeo = petalGeo(.22, 1.1, .25, .15, [0x1d4a1a, 0x2f6b2a, 0x3f8a35]);
   const leafMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6, side: THREE.DoubleSide, ...clipped });
-  for (let k = 0; k < 10; k++) { // leaves spiral up the stems
+  for (let k = 0; k < 7; k++) { // leaves peeking out of the wrap
     const pivot = new THREE.Group();
-    pivot.position.y = -2.3 + k * .17;
+    pivot.position.y = -.85 + (k % 3) * .08;
     pivot.rotation.y = k * 2.4;
     const m = new THREE.Mesh(leafGeo, leafMat);
-    m.scale.setScalar(1 - k * .05);
+    m.scale.setScalar(.55);
     m.rotation.x = .7 + (k % 3) * .15;
     pivot.add(m);
     rose.add(pivot);
+  }
+
+  const paper = document.createElement('canvas');
+  paper.width = 1024; paper.height = 512;
+  {
+    const pc = paper.getContext('2d');
+    const bg = pc.createLinearGradient(0, 0, 0, 512);
+    bg.addColorStop(0, '#fffdf8'); bg.addColorStop(1, '#efe9df');
+    pc.fillStyle = bg; pc.fillRect(0, 0, 1024, 512);
+    pc.strokeStyle = '#c9a03c'; pc.lineWidth = 9; pc.lineCap = 'round';
+    for (let i = 0; i < 7; i++) {
+      pc.beginPath();
+      for (let y = 0; y <= 512; y += 8) {
+        const x = 70 + i * 146 + Math.sin(y / 70 + i) * 26;
+        y ? pc.lineTo(x, y) : pc.moveTo(x, y);
+      }
+      pc.stroke();
+    }
+  }
+  const paperTex = new THREE.CanvasTexture(paper);
+  paperTex.colorSpace = THREE.SRGBColorSpace;
+  const paperMat = new THREE.MeshPhysicalMaterial({ map: paperTex, roughness: .55, sheen: .3, side: THREE.DoubleSide, ...clipped });
+  for (let k = 0; k < 3; k++) {
+    const h = 1.9;
+    const g = new THREE.CylinderGeometry(.95 + k * .03, .13 + k * .01, h, 48, 12, true, k * 2.1, 3.4);
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const t = (y + h / 2) / h, th = Math.atan2(x, z);
+      const flare = 1 + .1 * Math.sin(th * 5 + k) * t * t;
+      p.setXYZ(i, x * flare, y + .14 * Math.sin(th * 3 + k * 2) * t ** 3, z * flare);
+    }
+    g.computeVertexNormals();
+    const sheet = new THREE.Mesh(g, paperMat);
+    sheet.position.y = -.35 - h / 2;
+    rose.add(sheet);
+  }
+  const satin = new THREE.MeshPhysicalMaterial({ color: 0xc9a27a, roughness: .35, sheen: 1, sheenColor: new THREE.Color(0xf3dcc0), ...clipped });
+  const band = new THREE.Mesh(new THREE.TorusGeometry(.33, .05, 12, 48), satin);
+  band.rotation.x = Math.PI / 2;
+  band.position.y = -1.9;
+  rose.add(band);
+  for (const sgn of [-1, 1]) {
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(.17, .04, 10, 32), satin);
+    bow.scale.set(1, .6, 1);
+    bow.position.set(sgn * .17, -1.88, .36);
+    bow.rotation.set(0, 0, sgn * .4);
+    rose.add(bow);
   }
 
   // ---- sparkles + falling petals ----
