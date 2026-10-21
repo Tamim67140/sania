@@ -248,8 +248,8 @@ function startSong(tries = 0) {
   src.buffer = songBuf;
   src.loop = true;
   g.gain.setValueAtTime(.0001, now);
-  g.gain.exponentialRampToValueAtTime(.02, now + 8);
-  g.gain.linearRampToValueAtTime(.3, now + 35);
+  g.gain.linearRampToValueAtTime(.25, now + 1.5);
+  g.gain.linearRampToValueAtTime(.8, now + 10);
   src.connect(g); g.connect(master);
   src.start();
   tuneBus.gain.setValueAtTime(1, now);
